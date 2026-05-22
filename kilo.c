@@ -1,3 +1,5 @@
+#include<ctype.h>
+#include<stdio.h>
 #include<unistd.h>
 #include<termios.h>
 #include<stdlib.h>
@@ -10,13 +12,27 @@ void enableRawMode()
 {
     atexit(disableRawMode);
     tcgetattr(STDIN_FILENO,&orig_termios);
-    orig_termios.c_lflag &= ~(ECHO | ICANON);
-    tcsetattr(STDIN_FILENO,TCSAFLUSH,&orig_termios);
+    struct termios raw = orig_termios;
+    raw.c_iflag &= ~(IXON | ICRNL);
+    raw.c_oflag &= ~(OPOST);
+    raw.c_cflag |= ~(CS8);
+    raw.c_lflag &= ~(BRKINT | ECHO | ICANON | ISIG | IEXTEN);
+    tcsetattr(STDIN_FILENO,TCSAFLUSH,&raw);
 }
 int main()
 {
     enableRawMode();
     char c;
-    while(read(STDIN_FILENO,&c,1)==1 && c != 'q');
+    while(read(STDIN_FILENO,&c,1)==1 && c != 'q')
+    {
+        if(iscntrl(c))
+        {
+            printf("%d\r\n",c);
+        }
+        else
+        {
+            printf("%d'(%c)'\r\n",c,c);
+        }
+    }
     return 0;
 }

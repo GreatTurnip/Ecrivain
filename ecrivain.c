@@ -8,6 +8,7 @@
 #include<errno.h>
 #include<sys/ioctl.h>
 #include<string.h>
+#include<sys/types.h>
 
 /* DEFINES */
 
@@ -20,15 +21,26 @@ enum editorKey{
     ARROW_UP,
     ARROW_DOWN,
     PAGE_UP,
+    DEL_KEY,
     PAGE_DOWN,
+    HOME_KEY,
+    END_KEY,
 };
+
 /* DATA */
+
+typedef struct Erow {
+    int size;
+    char *chars;
+}erow;
 
 struct editorconfig{
     struct termios orig_termios;
     int screenrows;
     int screencols;
     int cx,cy;
+    int numrows;
+    erow row;
 };
 
 struct editorconfig E;
@@ -43,7 +55,7 @@ void editorProcessKeypress();
 int getWindowSize();
 void initEditor();
 void editorMoveCursor(int key);
-
+void editorOpen();
 /* APPEND BUFFER */
 
 struct abuf {
@@ -121,6 +133,11 @@ int editorReadKey()
                     {
                         switch(seq[1])
                         {
+                            case '3': return DEL_KEY;
+                            case '1': return HOME_KEY;
+                            case '7': return HOME_KEY;
+                            case '4': return END_KEY;
+                            case '8': return END_KEY;
                             case '5': return PAGE_UP;
                             case '6': return PAGE_DOWN;
                         }
@@ -135,7 +152,17 @@ int editorReadKey()
                         case 'B': return ARROW_DOWN;
                         case 'C': return ARROW_RIGHT;
                         case 'D': return ARROW_LEFT;
+                        case 'H': return HOME_KEY;
+                        case 'F': return END_KEY;
                     }
+            }
+        }
+        else if(seq[0] == 'O')
+        {
+            switch(seq[1])
+            {
+                case 'H': return HOME_KEY;
+                case 'F': return END_KEY;
             }
         }
         return '\x1b';
@@ -154,6 +181,12 @@ void editorProcessKeypress()
     {
         case CTRL_KEY('q'):
             exit(0);
+            break;
+        case HOME_KEY:
+            E.cx = 0;
+            break;
+        case END_KEY:
+            E.cx = E.screencols - 1;
             break;
         case PAGE_UP:
         case PAGE_DOWN:
@@ -197,7 +230,13 @@ void editorDrawRows(struct abuf *ab)
     int y;
     for(y = 0; y < E.screenrows; y++)
     {
-        abAppend(ab, "~", 1);
+        if(y >= E.numrows) abAppend(ab, "~",1);
+        else
+        {
+            int len = E.row.size;
+            if(len > E.screencols -1)   len = E.screencols;
+            abAppend(ab, E.row.chars, len);
+        }
         abAppend(ab, "\x1b[K", 3);
 
         if(y < E.screenrows - 1)
@@ -211,6 +250,7 @@ void initEditor()
 {
     E.cx = 0;
     E.cy = 0;
+    E.numrows = 0;
     if(getWindowSize(&E.screenrows, &E.screencols) == -1)   die("getWindowSize");
 }
 
@@ -247,12 +287,26 @@ void editorMoveCursor(int key)
             break;
     }
 }
+
+void editorOpen()
+{
+    char *lines = "Hello, World!";
+    ssize_t linelen = 13;
+
+    E.row.size = linelen;
+    E.row.chars = malloc(linelen + 1);
+    memcpy(E.row.chars, lines, linelen);
+    E.row.chars[linelen] = '\0';
+    E.numrows = 1;
+}
+
 /* INIT */
 
 int main()
 {
     enableRawMode();
     initEditor();
+    editorOpen();
     while(1)
     {
         editorRefreshScreen();

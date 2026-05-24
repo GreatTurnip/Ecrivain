@@ -14,6 +14,12 @@
 #define CTRL_KEY(k) ((k) & 0x1f)
 #define ABUF_INIT {NULL, 0}
 
+enum editorKey{
+    ARROW_LEFT = 1000,
+    ARROW_RIGHT,
+    ARROW_UP,
+    ARROW_DOWN,
+};
 /* DATA */
 
 struct editorconfig{
@@ -34,6 +40,7 @@ void editorDrawRows();
 void editorProcessKeypress();
 int getWindowSize();
 void initEditor();
+void editorMoveCursor(int key);
 
 /* APPEND BUFFER */
 
@@ -85,7 +92,7 @@ void enableRawMode()
         die("tcsetattr");
 }
 
-char editorReadKey()
+int editorReadKey()
 {
     int nread;
     char c;
@@ -93,17 +100,46 @@ char editorReadKey()
     {
         if(nread == -1) die("read");
     }
-    return c;
+    if(c == '\x1b')
+    {
+        char seq[3];
+        //check if it's just simple escape sequence
+        if(read(STDIN_FILENO, &seq[0], 1) != 1) return '\x1b';
+        if(read(STDIN_FILENO, &seq[1], 1) != 1) return '\x1b';
+
+        if(seq[0]=='[')
+        {
+            switch(seq[1])
+            {
+                case 'A': return ARROW_UP;
+                case 'B': return ARROW_DOWN;
+                case 'C': return ARROW_RIGHT;
+                case 'D': return ARROW_LEFT;
+            }
+        }
+        return '\x1b';
+    }
+    else
+    {
+        return c;
+    }
 }
 
 void editorProcessKeypress()
 {
-    char c = editorReadKey();
+    int c = editorReadKey();
 
     switch(c)
     {
         case CTRL_KEY('q'):
             exit(0);
+            break;
+        
+        case ARROW_UP:
+        case ARROW_DOWN:
+        case ARROW_LEFT:
+        case ARROW_RIGHT:
+            editorMoveCursor(c);
             break;
     }
 }
@@ -117,7 +153,9 @@ void editorRefreshScreen()
 
     editorDrawRows(&ab);
 
-    abAppend(&ab, "\x1b[H", 3);
+    char buf[32];
+    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", E.cy + 1, E.cx + 1);
+    abAppend(&ab, buf, strlen(buf));
     abAppend(&ab, "\x1b[?25h", 6);
 
     write(STDOUT_FILENO, ab.b, ab.len);
@@ -161,6 +199,24 @@ int getWindowSize(int* rows, int* col)
     }
 }
 
+void editorMoveCursor(int key)
+{
+    switch(key)
+    {
+        case ARROW_LEFT:
+            if(E.cx != 0)   E.cx--;
+            break;
+        case ARROW_RIGHT:
+            if(E.cx != E.screencols -1) E.cx++;
+            break;
+        case ARROW_DOWN:
+            if(E.cy != E.screenrows -1) E.cx++;
+            break;
+        case ARROW_UP:
+            if(E.cy != 0)   E.cy--;
+            break;
+    }
+}
 /* INIT */
 
 int main()

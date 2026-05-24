@@ -1,3 +1,3 @@
-kilo: kilo.c
-	$(CC) kilo.c -o bin/kilo  -Wall -Wextra -pedantic -std=c99
+ecrivain : ecrivain.c
+	$(CC) ecrivain.c -o bin/ecrivain  -Wall -Wextra -pedantic -std=c99
 
